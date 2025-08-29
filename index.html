@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Task-Manager</title>
+
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header card">
+      <div class="title">
+        <span class="taskForm">📋</span>
+        <h1>Task-Manager</h1>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat card neon">
+          <div class="stat-label">⭐ Points</div>
+          <div class="stat-value" id="points">0</div>
+        </div>
+        <div class="stat card neon">
+          <div class="stat-label">🔥 Streak</div>
+          <div class="stat-value" id="streak">0</div>
+        </div>
+        <div class="stat card neon">
+          <div class="stat-label">🏆 Level</div>
+          <div class="stat-value" id="level">1</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <label class="switch" title="Toggle light/dark">
+          <input type="checkbox" id="themeToggle" />
+          <span class="slider"></span>
+        </label>
+        <button id="resetApp" class="btn small ghost" title="Reset all data">Reset</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- Task Manager -->
+      <section class="card section" id="tasksCard">
+        <h2>📝 Task Manager</h2>
+        <form id="taskForm" class="task-form" onsubmit="return false;">
+          <input id="taskInput" type="text" placeholder="Add new task..." aria-label="Add new task" />
+          <div class="form-actions">
+            <select id="taskPriority" aria-label="Select priority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+            <button id="addTaskBtn" class="btn gradient">Add</button>
+          </div>
+        </form>
+
+        <div class="progress-bar-wrap">
+          <div class="progress-label">Completion</div>
+          <div class="progress-bar"><div id="taskProgress" style="width:0%"></div></div>
+        </div>
+
+        <ul id="taskList" class="task-list" aria-live="polite"></ul>
+      </section>
+
+      <!-- Timer -->
+      <section class="card section" id="timerCard">
+        <h2>⏳ Focus Timer</h2>
+
+        <div class="timer-wrap">
+          <svg class="timer-ring" viewBox="0 0 120 120" width="160" height="160" aria-hidden="true">
+            <defs>
+              <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0" stop-color="#00c6ff"/>
+                <stop offset="1" stop-color="#ff55ff"/>
+              </linearGradient>
+            </defs>
+            <circle cx="60" cy="60" r="52" stroke="#0f1724" stroke-width="14" fill="none"></circle>
+            <circle id="ringProgress" cx="60" cy="60" r="52" stroke="url(#ringGrad)" stroke-width="14" fill="none"
+                    stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="327" stroke-dashoffset="327"></circle>
+          </svg>
+
+          <div class="timer-display">
+            <div id="timerText">25:00</div>
+            <div class="timer-mode">
+              <label><input type="radio" name="mode" value="pomodoro" checked /> Pomodoro</label>
+              <label><input type="radio" name="mode" value="custom" /> Custom</label>
+              <input id="customMinutes" type="number" min="1" max="180" placeholder="min" style="width:70px" />
+            </div>
+            <div class="timer-buttons">
+              <button id="startBtn" class="btn gradient">Start</button>
+              <button id="pauseBtn" class="btn ghost">Pause</button>
+              <button id="resetBtn" class="btn small">Reset</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Weekly Chart -->
+      <section class="card section" id="chartCard">
+        <h2>📊 Weekly Productivity</h2>
+        <canvas id="weeklyChart" height="120" aria-label="Weekly productivity chart"></canvas>
+      </section>
+    </main>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toasts" aria-live="polite" class="toasts"></div>
+
+  <!-- Confetti canvas -->
+  <canvas id="confettiCanvas" class="confetti"></canvas>
+
+  <script src="script.js"></script>
+  <h1><marquee>Created By SATHWIK GOWDA</marquee></h1>
+  <u style="color:red";>THANK YOU &hearts;</u>
+</body>
+</html>
