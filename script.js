@@ -37,25 +37,81 @@ function escapeHtml(str = "") {
     .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 
-// 🔊 short sound helper
-function playSound(frequency = 660, duration = 0.25){
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = "sine";
-    o.frequency.value = frequency;
-    g.gain.value = 0.001;
-    o.connect(g); g.connect(ctx.destination);
-
-    const now = ctx.currentTime;
-    g.gain.exponentialRampToValueAtTime(0.15, now + 0.02);
-    o.start(now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + duration);
-    o.stop(now + duration + 0.05);
-  } catch(e){
-    console.warn("Audio not available", e);
+// ================= AUDIO SYSTEM (single AudioContext + nice chimes) =================
+let _audioCtx = null;
+function getAudioCtx(){
+  if (!_audioCtx){
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e){ _audioCtx = null; console.warn("AudioContext unavailable", e); }
   }
+  return _audioCtx;
+}
+
+// Create a short, pleasant chime (multi-note, smooth envelope)
+function playChime(notes = [523, 659, 784], noteDur = 0.14, opts = {}){
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  // resume context if suspended (user gesture may be required)
+  if (ctx.state === "suspended") ctx.resume().catch(()=>{});
+  const now = ctx.currentTime;
+  const type = opts.type || "triangle"; // triangle is warm
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = opts.masterGain || 0.8;
+  masterGain.connect(ctx.destination);
+
+  notes.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+
+    osc.type = type;
+    // slight detune to add 'richness' (small random detune)
+    osc.detune.value = (Math.random() - 0.5) * 6;
+    osc.frequency.value = freq;
+
+    const t0 = now + i * (noteDur * 0.7); // slight overlap
+    g.gain.setValueAtTime(0.0001, t0);
+    // quick attack
+    g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.03);
+    // decay to softer sustain
+    g.gain.exponentialRampToValueAtTime(0.08, t0 + noteDur * 0.7);
+    // release
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + noteDur + 0.06);
+
+    osc.connect(g);
+    g.connect(masterGain);
+
+    osc.start(t0);
+    osc.stop(t0 + noteDur + 0.08);
+  });
+
+  // cleanup: disconnect masterGain after longest note finishes
+  const total = now + notes.length * noteDur + 0.3;
+  setTimeout(() => {
+    try { masterGain.disconnect(); } catch(e){}
+  }, (total - now) * 1000);
+}
+
+// A slightly longer, celebratory finish tone (arpeggio + rise)
+function playFinishMelody(){
+  const melody = [392, 523, 659, 784]; // G4 C5 E5 G5 (pleasant)
+  playChime(melody, 0.18, { type: "sine", masterGain: 0.9 });
+}
+
+// keep an optional single-note fallback for very small UX taps (if needed)
+function playTap(freq = 880, dur = 0.09){
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  if (ctx.state === "suspended") ctx.resume().catch(()=>{});
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = 'sine';
+  o.frequency.value = freq;
+  g.gain.value = 0.0001;
+  o.connect(g); g.connect(ctx.destination);
+  const now = ctx.currentTime;
+  g.gain.exponentialRampToValueAtTime(0.22, now + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  o.start(now); o.stop(now + dur + 0.02);
 }
 
 // ================= HEADER & STATS =================
@@ -141,10 +197,15 @@ function toggleDone(i){
     addPoints(10);
     confettiBurst();
     toast("Nice! +10 points");
-    playSound(660, 0.25); // 🎵 success ding
+    // priority-aware chime for more feedback:
+    if (t.priority === "high") playChime([880, 1046, 1318], 0.12, { type: "triangle" }); // strong
+    else if (t.priority === "medium") playChime([523, 659, 784]); // default pleasant
+    else playChime([440, 554], 0.14); // softer for low
     addProductivityForToday();
   } else {
     data.points = Math.max(0, data.points - 10);
+    // subtle negative sound
+    playTap(220, 0.08);
   }
   save(); renderTasks();
 }
@@ -154,6 +215,7 @@ function deleteTask(i){
   data.tasks.splice(i,1);
   save(); renderTasks();
   toast("Task deleted");
+  playTap(520, 0.07);
 }
 
 function startEdit(i){
@@ -162,6 +224,7 @@ function startEdit(i){
   if (newtext === null) return;
   t.text = newtext.trim() || t.text;
   save(); renderTasks();
+  playTap(720, 0.06);
 }
 
 function reorderTasks(from, to){
@@ -169,6 +232,7 @@ function reorderTasks(from, to){
   const item = data.tasks.splice(from,1)[0];
   data.tasks.splice(to,0,item);
   save(); renderTasks();
+  playTap(660, 0.05);
 }
 
 // ================= POINTS & LEVELS =================
@@ -182,6 +246,8 @@ function addPoints(n){
     data.level++;
     toast("Level Up! 🎉");
     levelUpAnimation();
+    // celebratory chime for level up
+    playChime([784, 988, 1176, 1568], 0.14, { type: "sine", masterGain: 1.0 });
   }
   // animate header counters
   updateHeader();
@@ -256,6 +322,7 @@ function addProductivityForToday(){
 
 function animateChartPulse(){
   const canvas = el("weeklyChart");
+  if (!canvas) return;
   canvas.style.transform = "scale(1.02)";
   canvas.style.transition = "transform .25s ease";
   setTimeout(()=> canvas.style.transform = "", 300);
@@ -271,7 +338,8 @@ function formatTime(sec){
   return `${m}:${s<10? '0'+s : s}`;
 }
 function updateTimerUI(){
-  el("timerText").textContent = formatTime(timerSeconds);
+  const tEl = el("timerText");
+  if (tEl) tEl.textContent = formatTime(timerSeconds);
   const ring = el("ringProgress");
   if (!ring) return;
   const full = 2 * Math.PI * 52;
@@ -307,9 +375,12 @@ function startTimer(){
       toast("⏰ Focus session complete! +50 points");
       addPoints(50);
       confettiBurst();
-      playFinishTone();
-      playSound(523, 0.4); // 🎵 extra completion beep
+      // nicer finish: melodic arpeggio + chime
+      playFinishMelody();
+      // small extra flourish
+      setTimeout(()=> playChime([988, 1318], 0.12, { type: "triangle", masterGain: 0.6 }), 220);
       notifyUser("Focus session complete", "You earned +50 points!");
+      // reset to mode default
       timerSeconds = getTimerMode() === "pomodoro" ? 25*60 : Number(el("customMinutes").value || 25) * 60;
       updateTimerUI();
     }
@@ -328,10 +399,12 @@ function resetTimer(){
   updateTimerUI();
 }
 
-// existing finish tone (rising fall)
+// existing finish tone kept for compatibility (but not used by default)
 function playFinishTone(){
   try{
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume().catch(()=>{});
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = 'sine';
@@ -348,6 +421,7 @@ function playFinishTone(){
   } catch(e){ console.warn("Audio not available", e); }
 }
 
+// desktop notification (permission requested once)
 function notifyUser(title, body){
   if (!("Notification" in window)) return;
   if (Notification.permission === "granted"){
@@ -359,11 +433,19 @@ function notifyUser(title, body){
 
 // ================= CONFETTI =================
 const confettiCanvas = el("confettiCanvas");
-confettiCanvas.width = window.innerWidth;
-confettiCanvas.height = window.innerHeight;
-const confettiCtx = confettiCanvas.getContext("2d");
+let confettiCtx = null;
 let confettiParticles = [];
+
+function initConfettiCanvas(){
+  if (!confettiCanvas) return;
+  confettiCanvas.width = window.innerWidth;
+  confettiCanvas.height = window.innerHeight;
+  confettiCtx = confettiCanvas.getContext("2d");
+}
+initConfettiCanvas();
+
 function confettiBurst(){
+  if (!confettiCtx) return;
   const count = 55;
   confettiParticles = [];
   for (let i=0;i<count;i++){
@@ -380,6 +462,7 @@ function confettiBurst(){
   requestAnimationFrame(confettiFrame);
 }
 function confettiFrame(){
+  if (!confettiCtx) return;
   confettiCtx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
   confettiParticles.forEach((p,i)=>{
     p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--;
@@ -432,11 +515,25 @@ document.addEventListener("DOMContentLoaded", ()=>{
   updateChart();
   updateHeader();
   updateTimerUI();
+  initConfettiCanvas();
 
+  // keep confetti canvas sized with window
   window.addEventListener("resize", ()=> {
-    confettiCanvas.width = window.innerWidth;
-    confettiCanvas.height = window.innerHeight;
+    if (confettiCanvas) {
+      confettiCanvas.width = window.innerWidth;
+      confettiCanvas.height = window.innerHeight;
+    }
   });
+
+  // optional: resume audio context on first user interaction (improves reliability)
+  const resumeAudio = () => {
+    const ctx = getAudioCtx();
+    if (ctx && ctx.state === "suspended") ctx.resume().catch(()=>{});
+    window.removeEventListener("pointerdown", resumeAudio);
+    window.removeEventListener("keydown", resumeAudio);
+  };
+  window.addEventListener("pointerdown", resumeAudio);
+  window.addEventListener("keydown", resumeAudio);
 });
 
 // expose small API
