@@ -37,6 +37,27 @@ function escapeHtml(str = "") {
     .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 
+// 🔊 short sound helper
+function playSound(frequency = 660, duration = 0.25){
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = frequency;
+    g.gain.value = 0.001;
+    o.connect(g); g.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+    g.gain.exponentialRampToValueAtTime(0.15, now + 0.02);
+    o.start(now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    o.stop(now + duration + 0.05);
+  } catch(e){
+    console.warn("Audio not available", e);
+  }
+}
+
 // ================= HEADER & STATS =================
 function updateHeader(){
   const p = el("points"), s = el("streak"), lv = el("level"), prog = el("taskProgress");
@@ -120,6 +141,7 @@ function toggleDone(i){
     addPoints(10);
     confettiBurst();
     toast("Nice! +10 points");
+    playSound(660, 0.25); // 🎵 success ding
     addProductivityForToday();
   } else {
     data.points = Math.max(0, data.points - 10);
@@ -223,7 +245,6 @@ function updateChart(){
   chart.data.datasets[0].data = data.productivity;
   chart.options.scales.y.suggestedMax = Math.max(3, Math.max(...data.productivity) + 1);
   chart.update();
-  // small celebratory animation if last data increased
   animateChartPulse();
 }
 
@@ -251,10 +272,9 @@ function formatTime(sec){
 }
 function updateTimerUI(){
   el("timerText").textContent = formatTime(timerSeconds);
-  // ring progress
   const ring = el("ringProgress");
   if (!ring) return;
-  const full = 2 * Math.PI * 52; // circumference ~ 327
+  const full = 2 * Math.PI * 52;
   const mode = getTimerMode();
   const total = mode === "pomodoro" ? 25*60 : Number(el("customMinutes").value || 25) * 60;
   const progress = Math.min(1, (total - timerSeconds) / total);
@@ -268,7 +288,6 @@ function getTimerMode(){
 
 function startTimer(){
   if (running) return;
-  // if starting fresh set seconds according to mode if currently full
   if (!timerInterval && !running){
     if (getTimerMode() === "pomodoro") { timerSeconds = 25*60; }
     if (getTimerMode() === "custom") {
@@ -289,8 +308,8 @@ function startTimer(){
       addPoints(50);
       confettiBurst();
       playFinishTone();
+      playSound(523, 0.4); // 🎵 extra completion beep
       notifyUser("Focus session complete", "You earned +50 points!");
-      // reset to mode default
       timerSeconds = getTimerMode() === "pomodoro" ? 25*60 : Number(el("customMinutes").value || 25) * 60;
       updateTimerUI();
     }
@@ -309,7 +328,7 @@ function resetTimer(){
   updateTimerUI();
 }
 
-// play short tone using WebAudio
+// existing finish tone (rising fall)
 function playFinishTone(){
   try{
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -329,7 +348,6 @@ function playFinishTone(){
   } catch(e){ console.warn("Audio not available", e); }
 }
 
-// desktop notification (permission requested once)
 function notifyUser(title, body){
   if (!("Notification" in window)) return;
   if (Notification.permission === "granted"){
