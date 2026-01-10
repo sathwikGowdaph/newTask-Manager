@@ -36,7 +36,7 @@ UI/UX: Material You inspired, futuristic gradients
 
 Deployment: Web + Android (PWA/Capacitor)
 
-🚀 Getting Started 1️⃣ Clone the repo git clone https://github.com/Vinaycoder153/protracker.git cd protracker
+🚀 Getting Started 1️⃣ Clone the repo git clone https://sathwikgowdaph.github.io/newTask-Manager/
 
 2️⃣ Run locally
 
